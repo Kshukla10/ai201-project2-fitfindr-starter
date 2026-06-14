@@ -16,18 +16,26 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **What it does:**
 <!-- Describe what this tool does in 1–2 sentences -->
+Loads all listings from listings.json, filters by price and size, 
+scores each by keyword overlap with the description, and returns 
+a sorted list of matching listing dicts.
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `description` (str): ...
-- `size` (str): ...
-- `max_price` (float): ...
+- `description` (str): Keywords describing the item e.g. "vintage graphic tee"
+- `size` (str): Size to filter by e.g. "M", skip filtering if None
+- `max_price` (float): Upper price limit, skip filtering if None
 
 **What it returns:**
 <!-- Describe the return value — what fields does a result contain? -->
+A list of listing dicts sorted by relevance score, each containing:
+id, title, description, category, style_tags, size, condition, 
+price, colors, brand, platform. Returns [] if nothing matches.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if no listings match? -->
+Returns [] — agent sets session["error"] = "No listings found — 
+try broader search terms or a higher price limit" and stops immediately.
 
 ---
 
@@ -35,17 +43,23 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **What it does:**
 <!-- Describe what this tool does in 1–2 sentences -->
+Sends the new item and user's wardrobe to the LLM and asks for 
+1-2 complete outfit combinations using the thrifted piece.
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `new_item` (dict): ...
-- `wardrobe` (dict): ...
+- `new_item` (dict): A listing dict for the item being considered
+- `wardrobe` (dict): Has an 'items' key with a list of wardrobe 
+  item dicts, may be empty
 
 **What it returns:**
 <!-- Describe the return value -->
+A non-empty string with outfit suggestions from the LLM.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if the wardrobe is empty or no outfit can be suggested? -->
+If wardrobe['items'] is empty, still calls LLM but asks for 
+general styling advice instead of specific combinations.
 
 ---
 
@@ -53,16 +67,23 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **What it does:**
 <!-- Describe what this tool does in 1–2 sentences -->
+Sends the outfit suggestion and item details to the LLM and 
+generates a short casual Instagram-style caption.
 
 **Input parameters:**
 <!-- List each parameter, its type, and what it represents -->
-- `outfit` (...): ...
+- `outfit` (str): The outfit suggestion string from suggest_outfit
+- `new_item` (dict): The listing dict for the thrifted item
 
 **What it returns:**
 <!-- Describe the return value -->
+A 2-4 sentence casual caption string mentioning the item name, 
+price, and platform naturally.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if the outfit data is incomplete? -->
+If outfit is empty or whitespace, return error message string 
+immediately — do not call the LLM.
 
 ---
 
@@ -76,6 +97,14 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **How does your agent decide which tool to call next?**
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
+After search_listings runs, check if results is empty. If yes, 
+set session["error"] = "No listings found — try broader search 
+terms or a higher price limit" and return immediately. If no, 
+set session["selected_item"] = results[0] and call suggest_outfit. 
+After suggest_outfit runs, store the result in 
+session["outfit_suggestion"] and call create_fit_card. After 
+create_fit_card runs, store the result in session["fit_card"] 
+and return the full session to the user.
 
 ---
 
@@ -83,6 +112,14 @@ You must have at least 3 tools. The three required tools are listed — add any 
 
 **How does information from one tool get passed to the next?**
 <!-- Describe how your agent stores and accesses state within a session. What data is tracked? How is it passed between tool calls? -->
+The agent maintains a session dict with four keys:
+- session["selected_item"]: set after search_listings succeeds
+- session["outfit_suggestion"]: set after suggest_outfit succeeds  
+- session["fit_card"]: set after create_fit_card succeeds
+- session["error"]: set if any tool fails, triggers early stop
+
+Each tool receives its inputs directly from the session dict, 
+so no data is re-entered by the user between steps.
 
 ---
 
@@ -92,9 +129,9 @@ For each tool, describe the specific failure mode you're handling and what the a
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | |
-| suggest_outfit | Wardrobe is empty | |
-| create_fit_card | Outfit input is missing or incomplete | |
+| search_listings | No results match the query | Sets session["error"] = "No listings found — try broader search terms or a higher price limit" and stops immediately |
+| suggest_outfit | Wardrobe is empty | Calls LLM for general styling advice instead of specific outfit combinations |
+| create_fit_card | Outfit input is missing or incomplete | Returns "Unable to generate fit card — outfit description is missing" without calling the LLM |
 
 ---
 
@@ -108,6 +145,7 @@ For each tool, describe the specific failure mode you're handling and what the a
      ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
      sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
      the planning loop and each individual tool. -->
+     ![Architecture](images/architecture_diagram.png)
 
 ---
 
@@ -125,8 +163,19 @@ For each tool, describe the specific failure mode you're handling and what the a
      before trusting it" is a plan. -->
 
 **Milestone 3 — Individual tool implementations:**
+I will give Claude each tool spec block from planning.md one at 
+a time (inputs, return value, failure mode) and ask it to implement 
+that function in tools.py using load_listings() from the data loader. 
+Before running, I will check that the generated code handles all 
+parameters and the failure mode. I will test each tool with 3 
+inputs before moving on.
 
 **Milestone 4 — Planning loop and state management:**
+I will give Claude the Architecture diagram and Planning Loop 
+section from planning.md and ask it to implement run_agent() 
+in agent.py. Before using the code I will verify it branches 
+on the search_listings result and does not call all three tools 
+unconditionally.
 
 ---
 
@@ -138,12 +187,18 @@ Write out what a full user interaction looks like from start to finish — tool 
 
 **Step 1:**
 <!-- What does the agent do first? Which tool is called? With what input? -->
+The agent calls search_listings("vintage graphic tee", size=None, max_price=30.0). It filters listings.json for items whose title or style_tags match "vintage" or "graphic tee" and whose price is at or below $30. It returns a list of matching listing dicts sorted by relevance. The agent picks the top result and stores it: session["selected_item"] = results[0].
 
 **Step 2:**
 <!-- What happens next? What was returned from step 1? What tool is called now? -->
+The agent calls suggest_outfit(new_item=session["selected_item"], wardrobe=user_wardrobe). It sends the selected item and the user's wardrobe items (baggy jeans, chunky sneakers) to the LLM and asks for a complete outfit combination. The LLM returns a styled suggestion string, stored in session["outfit_suggestion"].
 
 **Step 3:**
 <!-- Continue until the full interaction is complete -->
+The agent calls create_fit_card(outfit=session["outfit_suggestion"], new_item=session["selected_item"]). It sends both to the LLM and asks it to generate a short, Instagram-style caption. The result is stored in session["fit_card"].
 
 **Final output to user:**
 <!-- What does the user actually see at the end? -->
+Item found: "Faded Band Tee — $22, Depop, Good condition"
+Outfit suggestion: "Wear this with your wide-leg jeans and chunky sneakers for a 90s grunge vibe. Tuck the front corner slightly for shape."
+Fit card: "Just thrifted this faded band tee off Depop for $22 and it was made for my wide-legs 🖤 full look in my stories"
