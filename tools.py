@@ -129,8 +129,48 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Before writing code, fill in the Tool 2 section of planning.md.
     """
     # Replace this with your implementation
-    return ""
+    wardrobe_items = wardrobe.get("items", [])
+    
+    # Format new item details
+    item_details = f"""
+    Title: {new_item['title']}
+    Category: {new_item['category']}
+    Style tags: {', '.join(new_item['style_tags'])}
+    Colors: {', '.join(new_item['colors'])}
+    Condition: {new_item['condition']}
+    Price: ${new_item['price']}
+    """
 
+    # Empty wardrobe — general styling advice
+    if not wardrobe_items:
+        prompt = f"""You are a thrift fashion stylist. A user just found this secondhand item:
+{item_details}
+They don't have a wardrobe on file. Give them general styling advice — 
+what kinds of pieces pair well with this item, what vibe it suits, 
+and 1-2 outfit ideas using common wardrobe staples."""
+
+    # Wardrobe has items — suggest specific combinations
+    else:
+        wardrobe_text = "\n".join([
+            f"- {item['name']} ({item['category']}, {', '.join(item['colors'])})"
+            for item in wardrobe_items
+        ])
+        prompt = f"""You are a thrift fashion stylist. A user just found this secondhand item:
+{item_details}
+Their current wardrobe includes:
+{wardrobe_text}
+Suggest 1-2 specific outfit combinations using the new item and 
+named pieces from their wardrobe. Be specific about which pieces 
+to pair together and why it works."""
+
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=1000
+    )
+
+    return response.choices[0].message.content
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
@@ -162,4 +202,38 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Before writing code, fill in the Tool 3 section of planning.md.
     """
     # Replace this with your implementation
-    return ""
+    # Step 1: Guard against empty outfit string
+    if not outfit or not outfit.strip():
+        return "Unable to generate fit card — outfit description is missing."
+
+    # Step 2: Build prompt
+    prompt = f"""You are writing a casual Instagram/TikTok caption for a thrift outfit post.
+
+Item details:
+- Name: {new_item['title']}
+- Price: ${new_item['price']}
+- Platform: {new_item['platform']}
+- Colors: {', '.join(new_item['colors'])}
+- Style: {', '.join(new_item['style_tags'])}
+
+Outfit description:
+{outfit}
+
+Write a 2-4 sentence caption that:
+- Sounds like a real person posting their OOTD, not a product description
+- Mentions the item name, price, and platform naturally (once each)
+- Captures the specific vibe of the outfit
+- Feels authentic and casual, like something you'd actually post
+
+Do not use hashtags. Do not start with "I"."""
+
+    # Step 3: Call LLM with higher temperature for variety
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=200,
+        temperature=1.2
+    )
+
+    return response.choices[0].message.content
