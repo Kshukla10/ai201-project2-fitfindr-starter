@@ -145,7 +145,42 @@ For each tool, describe the specific failure mode you're handling and what the a
      ASCII art, a Mermaid diagram (https://mermaid.js.org/syntax/flowchart.html), or an embedded
      sketch are all fine. You'll share this diagram with an AI tool when asking it to implement
      the planning loop and each individual tool. -->
-     ![Architecture Diagram](images/architecture_diagram.png)
+     ## Architecture
+
+```mermaid
+flowchart TD
+    A([User Query]) --> B[Planning Loop]
+
+    B --> C[search_listings\ndescription, size, max_price]
+
+    C -- results=[] --> D[session error =\nNo listings found...\nSTOP]
+
+    C -- results=[item,...] --> E[session selected_item = results 0]
+
+    E --> F[suggest_outfit\nselected_item, wardrobe]
+
+    F -- wardrobe empty --> G[LLM gives general\nstyling advice]
+    F -- wardrobe has items --> H[LLM suggests specific\noutfit combinations]
+
+    G --> I[session outfit_suggestion = ...]
+    H --> I
+
+    I --> J[create_fit_card\noutfit_suggestion, selected_item]
+
+    J -- outfit is empty --> K[return error\nmessage string\nSTOP]
+
+    J -- outfit has content --> L[LLM generates\nInstagram caption]
+
+    L --> M[session fit_card = ...]
+
+    M --> N([Return session to user])
+
+    style D fill:#ff6b6b,color:#fff
+    style K fill:#ff6b6b,color:#fff
+    style N fill:#51cf66,color:#fff
+    style A fill:#339af0,color:#fff
+```
+     
 
 ---
 
