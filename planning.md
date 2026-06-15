@@ -90,6 +90,44 @@ immediately — do not call the LLM.
 ### Additional Tools (if any)
 
 <!-- Copy the block above for any tools beyond the required three -->
+### Tool 4: compare_prices
+
+**What it does:**
+Compares the price of a listing against comparable items in the dataset 
+by matching category and style_tags overlap.
+
+**Input parameters:**
+- `new_item` (dict): The listing dict for the item being considered
+
+**What it returns:**
+A string with GREAT DEAL / FAIR PRICE / SLIGHTLY HIGH assessment, 
+item price, average comparable price, price range, and reasoning.
+
+**What happens if it fails or returns nothing:**
+If no comparable listings are found, returns a message saying so 
+without raising an exception.
+
+---
+
+### Tool 5: save_style_profile / load_style_profile
+
+**What it does:**
+Saves and loads user wardrobe and style preferences to/from 
+data/style_profile.json for persistence across sessions.
+
+**Input parameters:**
+- `save_style_profile(wardrobe (dict), preferences (str))`: wardrobe 
+  dict and optional preferences string
+- `load_style_profile()`: no inputs
+
+**What it returns:**
+- `save_style_profile`: confirmation message string
+- `load_style_profile`: profile dict with 'wardrobe' and 'preferences' 
+  keys, or None if no profile exists
+
+**What happens if it fails or returns nothing:**
+If no saved profile exists, load_style_profile returns None and the 
+UI shows "No saved profile found."
 
 ---
 
@@ -97,14 +135,17 @@ immediately — do not call the LLM.
 
 **How does your agent decide which tool to call next?**
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
-After search_listings runs, check if results is empty. If yes, 
-set session["error"] = "No listings found — try broader search 
-terms or a higher price limit" and return immediately. If no, 
-set session["selected_item"] = results[0] and call suggest_outfit. 
-After suggest_outfit runs, store the result in 
+**How does your agent decide which tool to call next?**
+After search_listings runs, check if results is empty. If yes and a 
+size filter was applied, retry without the size filter and set 
+session["retry_note"] to inform the user. If results are still empty, 
+set session["error"] and return immediately. If results exist, set 
+session["selected_item"] = results[0] and call compare_prices to assess 
+the item's value. Then call suggest_outfit with the selected item and 
+wardrobe. After suggest_outfit runs, store the result in 
 session["outfit_suggestion"] and call create_fit_card. After 
-create_fit_card runs, store the result in session["fit_card"] 
-and return the full session to the user.
+create_fit_card runs, store the result in session["fit_card"] and 
+return the full session to the user.
 
 ---
 
@@ -198,19 +239,53 @@ flowchart TD
      before trusting it" is a plan. -->
 
 **Milestone 3 — Individual tool implementations:**
-I will give Claude each tool spec block from planning.md one at 
-a time (inputs, return value, failure mode) and ask it to implement 
-that function in tools.py using load_listings() from the data loader. 
-Before running, I will check that the generated code handles all 
-parameters and the failure mode. I will test each tool with 3 
-inputs before moving on.
+For search_listings, I gave Claude the Tool 1 spec block from planning.md 
+(inputs, return value, failure mode) and asked it to implement the function 
+using load_listings() from the data loader. Before running, I checked that 
+the generated code filtered by all three parameters and handled the 
+empty-results case. I tested it with 3 queries: one that returned results, 
+one with an impossible price, and one with a mismatched size.
+
+For suggest_outfit, I gave Claude the Tool 2 spec block and the wardrobe 
+data structure printed from get_example_wardrobe(). I asked it to implement 
+the function using Groq's llama-3.3-70b-versatile. I reviewed the generated 
+code and overrode the client initialization — the generated code used a 
+global client variable but the starter repo used a _get_groq_client() helper 
+function, so I changed every client call to use that instead.
+
+For create_fit_card, I gave Claude the Tool 3 spec block and asked it to 
+implement the function with a higher LLM temperature for variety. I verified 
+the empty outfit guard was present before the LLM call, and ran the function 
+three times on the same input to confirm outputs varied.
 
 **Milestone 4 — Planning loop and state management:**
-I will give Claude the Architecture diagram and Planning Loop 
-section from planning.md and ask it to implement run_agent() 
-in agent.py. Before using the code I will verify it branches 
-on the search_listings result and does not call all three tools 
-unconditionally.
+I gave Claude the Architecture diagram and Planning Loop section from 
+planning.md and asked it to implement run_agent() in agent.py. Before 
+using the code I verified it branched on the search_listings result and 
+did not call all three tools unconditionally. I also verified each tool 
+result was stored in the session dict before the next tool was called. 
+I overrode the query parsing approach — the generated code used LLM-based 
+parsing but I switched to regex for reliability and speed.
+
+**Stretch Features — Price comparison and retry logic:**
+
+For compare_prices, I gave Claude the Tool 4 spec block describing category 
+and style_tag matching and asked it to implement the function using 
+load_listings(). I verified the generated code dropped the current item 
+from comparables and handled the no-comparables case. I tested it against 
+3 listings and confirmed the assessment matched the price range.
+
+For retry logic, I gave Claude the updated Planning Loop section describing 
+the retry branch and asked it to modify run_agent() in agent.py. I verified 
+the retry only fired when size was not None, and that session["retry_note"] 
+was set correctly. I tested it with size XXS on a query that would otherwise 
+return no results.
+
+For style profile memory, I gave Claude the Tool 5 spec block and asked it 
+to implement save_style_profile() and load_style_profile() using Python's 
+json and pathlib modules. I verified the file was written to data/ and that 
+load returned None when no file existed. I tested save then load in sequence 
+and confirmed preferences were preserved.
 
 ---
 

@@ -143,3 +143,49 @@ I gave Claude the Tool 2 spec block from planning.md (inputs, return value, fail
 
 **Instance 2 — planning loop implementation:**
 I gave Claude the architecture diagram and planning loop section from planning.md and asked it to implement `run_agent()` in agent.py. I verified the generated code branched on the `search_listings` result before using it, and confirmed it did not call all three tools unconditionally.
+
+## Stretch Features
+
+### Retry Logic with Fallback
+If `search_listings` returns no results and a size filter was applied, 
+the agent automatically retries without the size filter and notifies 
+the user with a ⚠️ warning in the listing panel. If results are still 
+empty after retry, the agent sets `session["error"]` and stops.
+
+### Price Comparison Tool: compare_prices(new_item)
+- **Inputs:** `new_item` (dict) — a listing dict
+- **Output:** String with price assessment (GREAT DEAL / FAIR PRICE / 
+  SLIGHTLY HIGH), item price, average price of comparable listings, 
+  price range, and reasoning.
+- **How comparisons are made:** Finds listings with the same category 
+  and at least one overlapping style_tag, calculates average and range 
+  from those comparables, then assesses the item price against the average.
+
+### Style Profile Memory
+Saves the user's wardrobe and style preferences to `data/style_profile.json` 
+between sessions. Users can save their current wardrobe and preferences with 
+the Save Profile button, and reload them in a future session with Load Profile 
+— without re-describing their wardrobe. Storage approach: local JSON file 
+written and read with Python's `json` and `pathlib` modules.
+
+## State Management
+
+The agent maintains a `session` dict throughout one interaction:
+
+```python
+session = {
+    "query": query,              # original user query
+    "parsed": {},                # extracted description, size, max_price
+    "search_results": [],        # all matching listings
+    "selected_item": None,       # top result — passed into suggest_outfit
+    "wardrobe": wardrobe,        # user's wardrobe
+    "outfit_suggestion": None,   # returned by suggest_outfit — passed into create_fit_card
+    "fit_card": None,            # returned by create_fit_card
+    "price_comparison": None,    # returned by compare_prices
+    "retry_note": None,          # set if size filter was removed on retry
+    "error": None,               # set on early termination
+}
+```
+
+Each tool reads its inputs from the session and writes its output back — 
+no data is re-entered between steps.

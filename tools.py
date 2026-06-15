@@ -69,18 +69,18 @@ def search_listings(
 
     Before writing code, fill in the Tool 1 section of planning.md.
     """
-    # Replace this with your implementation
+
     listings = load_listings()
     
-    # Step 1: Filter by price
+
     if max_price is not None:
         listings = [l for l in listings if l["price"] <= max_price]
     
-    # Step 2: Filter by size (case-insensitive)
+
     if size is not None:
         listings = [l for l in listings if size.lower() in l["size"].lower()]
     
-    # Step 3: Score by keyword overlap with description
+
     keywords = description.lower().split()
     
     def score(listing):
@@ -91,11 +91,11 @@ def search_listings(
         )
         return sum(1 for word in keywords if word in text)
     
-    # Step 4: Drop zero-score listings
+
     scored = [(listing, score(listing)) for listing in listings]
     scored = [(l, s) for l, s in scored if s > 0]
     
-    # Step 5: Sort by score highest first
+
     scored.sort(key=lambda x: x[1], reverse=True)
     
     return [l for l, s in scored]
@@ -128,10 +128,10 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
 
     Before writing code, fill in the Tool 2 section of planning.md.
     """
-    # Replace this with your implementation
+
     wardrobe_items = wardrobe.get("items", [])
     
-    # Format new item details
+
     item_details = f"""
     Title: {new_item['title']}
     Category: {new_item['category']}
@@ -141,7 +141,7 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Price: ${new_item['price']}
     """
 
-    # Empty wardrobe — general styling advice
+
     if not wardrobe_items:
         prompt = f"""You are a thrift fashion stylist. A user just found this secondhand item:
 {item_details}
@@ -149,7 +149,7 @@ They don't have a wardrobe on file. Give them general styling advice —
 what kinds of pieces pair well with this item, what vibe it suits, 
 and 1-2 outfit ideas using common wardrobe staples."""
 
-    # Wardrobe has items — suggest specific combinations
+
     else:
         wardrobe_text = "\n".join([
             f"- {item['name']} ({item['category']}, {', '.join(item['colors'])})"
@@ -201,12 +201,11 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     Before writing code, fill in the Tool 3 section of planning.md.
     """
-    # Replace this with your implementation
-    # Step 1: Guard against empty outfit string
+
     if not outfit or not outfit.strip():
         return "Unable to generate fit card — outfit description is missing."
 
-    # Step 2: Build prompt
+
     prompt = f"""You are writing a casual Instagram/TikTok caption for a thrift outfit post.
 
 Item details:
@@ -227,7 +226,7 @@ Write a 2-4 sentence caption that:
 
 Do not use hashtags. Do not start with "I"."""
 
-    # Step 3: Call LLM with higher temperature for variety
+
     client = _get_groq_client()
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
@@ -237,3 +236,100 @@ Do not use hashtags. Do not start with "I"."""
     )
 
     return response.choices[0].message.content
+
+# ── Tool 4: compare_prices ────────────────────────────────────────────────────
+
+def compare_prices(new_item: dict) -> str:
+    """
+    Compare the price of a listing against similar items in the dataset.
+
+    Args:
+        new_item: A listing dict for the item being considered.
+
+    Returns:
+        A string with a price assessment and reasoning.
+    """
+    listings = load_listings()
+
+
+    new_tags = set(new_item.get("style_tags", []))
+    new_category = new_item.get("category", "")
+
+    comparable = []
+    for listing in listings:
+        if listing["id"] == new_item["id"]:
+            continue
+        if listing["category"] != new_category:
+            continue
+        tag_overlap = len(set(listing.get("style_tags", [])) & new_tags)
+        if tag_overlap > 0:
+            comparable.append(listing)
+
+    if not comparable:
+        return (
+            f"No comparable listings found for {new_item['title']} "
+            f"in the {new_category} category."
+        )
+
+
+    prices = [l["price"] for l in comparable]
+    avg_price = sum(prices) / len(prices)
+    min_price = min(prices)
+    max_price = max(prices)
+    item_price = new_item["price"]
+
+    if item_price < avg_price * 0.8:
+        assessment = "great deal"
+        reasoning = f"It's priced ${avg_price - item_price:.2f} below the average."
+    elif item_price <= avg_price * 1.1:
+        assessment = "fair price"
+        reasoning = f"It's close to the average price for similar items."
+    else:
+        assessment = "slightly high"
+        reasoning = f"It's ${item_price - avg_price:.2f} above the average."
+
+    return (
+        f"Price assessment for {new_item['title']}: {assessment.upper()}\n"
+        f"Item price: ${item_price:.2f}\n"
+        f"Comparable listings ({len(comparable)} found): "
+        f"avg ${avg_price:.2f}, range ${min_price:.2f}–${max_price:.2f}\n"
+        f"Reasoning: {reasoning}"
+    )
+
+# ── Tool 5: style profile memory ─────────────────────────────────────────────
+
+import json
+from pathlib import Path
+
+PROFILE_PATH = Path("data/style_profile.json")
+
+def save_style_profile(wardrobe: dict, preferences: str = "") -> str:
+    """
+    Save user's wardrobe and style preferences to a local JSON file.
+
+    Args:
+        wardrobe: The user's wardrobe dict
+        preferences: Optional string describing style preferences
+
+    Returns:
+        Confirmation message string
+    """
+    profile = {
+        "wardrobe": wardrobe,
+        "preferences": preferences
+    }
+    PROFILE_PATH.write_text(json.dumps(profile, indent=2))
+    return "Style profile saved successfully."
+
+
+def load_style_profile() -> dict | None:
+    """
+    Load the user's saved style profile from disk.
+
+    Returns:
+        Profile dict with 'wardrobe' and 'preferences' keys,
+        or None if no profile exists.
+    """
+    if not PROFILE_PATH.exists():
+        return None
+    return json.loads(PROFILE_PATH.read_text())

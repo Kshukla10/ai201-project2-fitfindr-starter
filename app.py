@@ -16,7 +16,7 @@ import gradio as gr
 
 from agent import run_agent
 from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
-
+from tools import compare_prices, save_style_profile, load_style_profile
 
 # ── query handler ─────────────────────────────────────────────────────────────
 
@@ -44,24 +44,24 @@ def handle_query(user_query: str, wardrobe_choice: str) -> tuple[str, str, str]:
            session["fit_card"].
     """
     # TODO: implement this function
-        # Step 1: Guard against empty query
+
     if not user_query or not user_query.strip():
         return "Please enter a search query.", "", ""
 
-    # Step 2: Select wardrobe
+
     if wardrobe_choice == "Example wardrobe":
         wardrobe = get_example_wardrobe()
     else:
         wardrobe = get_empty_wardrobe()
 
-    # Step 3: Call run_agent
+
     session = run_agent(query=user_query, wardrobe=wardrobe)
 
-    # Step 4: If error, return it in first panel
+
     if session["error"]:
         return session["error"], "", ""
 
-    # Step 5: Format selected item into readable text
+
     item = session["selected_item"]
     listing_text = f"""Title: {item['title']}
 Price: ${item['price']}
@@ -72,7 +72,11 @@ Colors: {', '.join(item['colors'])}
 Style tags: {', '.join(item['style_tags'])}
 Description: {item['description']}"""
 
-    return listing_text, session["outfit_suggestion"], session["fit_card"]
+
+    if session.get("retry_note"):
+        listing_text = f"⚠️ {session['retry_note']}\n\n{listing_text}"
+
+    return listing_text, session["price_comparison"], session["outfit_suggestion"], session["fit_card"]
 
 
 # ── interface ─────────────────────────────────────────────────────────────────
@@ -82,7 +86,7 @@ EXAMPLE_QUERIES = [
     "90s track jacket in size M",
     "flowy midi skirt under $40",
     "black combat boots size 8",
-    "designer ballgown size XXS under $5",   # deliberate no-results test
+    "designer ballgown size XXS under $5",   
 ]
 
 def build_interface():
@@ -107,11 +111,33 @@ Describe what you're looking for — include size and price if you want to filte
                 scale=1,
             )
 
+        with gr.Row():
+            preferences_input = gr.Textbox(
+                label="Style preferences (optional)",
+                placeholder="e.g. I love 90s grunge and earth tones",
+                lines=1,
+                scale=3,
+            )
+            with gr.Column(scale=1):
+                save_btn = gr.Button("💾 Save profile")
+                load_btn = gr.Button("📂 Load saved profile")
+
+        profile_status = gr.Textbox(
+            label="Profile status",
+            lines=1,
+            interactive=False,
+        )
+
         submit_btn = gr.Button("Find it", variant="primary")
 
         with gr.Row():
             listing_output = gr.Textbox(
                 label="🛍️ Top listing found",
+                lines=8,
+                interactive=False,
+            )
+            price_output = gr.Textbox(
+                label="💰 Price assessment",
                 lines=8,
                 interactive=False,
             )
@@ -132,15 +158,41 @@ Describe what you're looking for — include size and price if you want to filte
             label="Try these queries",
         )
 
+
+        def handle_save(wardrobe_choice, preferences):
+            wardrobe = get_example_wardrobe() if wardrobe_choice == "Example wardrobe" else get_empty_wardrobe()
+            msg = save_style_profile(wardrobe, preferences)
+            return msg
+
+
+        def handle_load():
+            profile = load_style_profile()
+            if profile is None:
+                return "No saved profile found.", ""
+            prefs = profile.get("preferences", "")
+            return "Profile loaded successfully.", prefs
+
+        save_btn.click(
+            fn=handle_save,
+            inputs=[wardrobe_choice, preferences_input],
+            outputs=[profile_status],
+        )
+
+        load_btn.click(
+            fn=handle_load,
+            inputs=[],
+            outputs=[profile_status, preferences_input],
+        )
+
         submit_btn.click(
             fn=handle_query,
             inputs=[query_input, wardrobe_choice],
-            outputs=[listing_output, outfit_output, fitcard_output],
+            outputs=[listing_output, price_output, outfit_output, fitcard_output],
         )
         query_input.submit(
             fn=handle_query,
             inputs=[query_input, wardrobe_choice],
-            outputs=[listing_output, outfit_output, fitcard_output],
+            outputs=[listing_output, price_output, outfit_output, fitcard_output],
         )
 
     return demo

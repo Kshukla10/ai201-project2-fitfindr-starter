@@ -18,7 +18,7 @@ Usage (once implemented):
     print(result["error"])   # None on success
 """
 
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, compare_prices
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -34,14 +34,16 @@ def _new_session(query: str, wardrobe: dict) -> dict:
     You may add fields to this dict as needed for your implementation.
     """
     return {
-        "query": query,              # original user query
-        "parsed": {},                # extracted description / size / max_price
-        "search_results": [],        # list of matching listing dicts
-        "selected_item": None,       # top result, passed into suggest_outfit
-        "wardrobe": wardrobe,        # user's wardrobe dict
-        "outfit_suggestion": None,   # string returned by suggest_outfit
-        "fit_card": None,            # string returned by create_fit_card
-        "error": None,               # set if the interaction ended early
+        "query": query,
+        "parsed": {},
+        "search_results": [],
+        "selected_item": None,
+        "wardrobe": wardrobe,
+        "outfit_suggestion": None,
+        "fit_card": None,
+        "error": None,
+        "retry_note": None,
+        "price_comparison": None,
     }
 
 
@@ -94,19 +96,19 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     # TODO: implement the planning loop
     session = _new_session(query, wardrobe)
-    #session["error"] = "Planning loop not yet implemented."
+
 
     import re
 
-    # Extract max_price (looks for "under $30" or "$30")
+
     price_match = re.search(r'under\s*\$?(\d+(?:\.\d+)?)', query, re.IGNORECASE)
     max_price = float(price_match.group(1)) if price_match else None
 
-    # Extract size (looks for "size S/M/L/XL" etc.)
+
     size_match = re.search(r'\bsize\s+([A-Z0-9/]+)\b', query, re.IGNORECASE)
     size = size_match.group(1) if size_match else None
 
-    # Description: remove price and size mentions, use rest as keywords
+
     description = re.sub(r'under\s*\$?\d+(?:\.\d+)?', '', query, flags=re.IGNORECASE)
     description = re.sub(r'\bsize\s+[A-Z0-9/]+\b', '', description, flags=re.IGNORECASE)
     description = description.strip()
@@ -117,11 +119,21 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "max_price": max_price
     }
 
-    # Step 3: Call search_listings
+
     results = search_listings(description, size=size, max_price=max_price)
     session["search_results"] = results
 
-    # If no results, set error and return early
+
+    if not results and size is not None:
+        results = search_listings(description, size=None, max_price=max_price)
+        session["search_results"] = results
+        if results:
+            session["retry_note"] = (
+                f"No results found for size {size} — "
+                f"showing results for all sizes instead."
+            )
+
+
     if not results:
         session["error"] = (
             "No listings found for those filters — "
@@ -129,22 +141,25 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         )
         return session
 
-    # Step 4: Select top result
+
     session["selected_item"] = results[0]
 
-    # Step 5: Call suggest_outfit
+
+    session["price_comparison"] = compare_prices(session["selected_item"])
+
+
     session["outfit_suggestion"] = suggest_outfit(
         session["selected_item"],
         session["wardrobe"]
     )
 
-    # Step 6: Call create_fit_card
+
     session["fit_card"] = create_fit_card(
         session["outfit_suggestion"],
         session["selected_item"]
     )
 
-    # Step 7: Return session
+
     return session
 
 
