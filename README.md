@@ -72,17 +72,17 @@ python app.py
 ## Tool Inventory
 
 ### Tool 1: search_listings(description, size, max_price)
-- **Inputs:** `description` (str) — keywords describing the item; `size` (str or None), size to filter by; `max_price` (float or None) — upper price limit
+- **Inputs:** `description` (str), keywords describing the item; `size` (str or None), size to filter by; `max_price` (float or None), upper price limit
 - **Output:** List of listing dicts sorted by relevance score, each containing id, title, description, category, style_tags, size, condition, price, colors, brand, platform. Returns `[]` if nothing matches.
 - **Purpose:** Searches and ranks listings from listings.json by keyword overlap with the description, after filtering by price and size.
 
 ### Tool 2: suggest_outfit(new_item, wardrobe)
-- **Inputs:** `new_item` (dict) — a listing dict; `wardrobe` (dict), has an `items` key with a list of wardrobe item dicts, may be empty
+- **Inputs:** `new_item` (dict), a listing dict; `wardrobe` (dict), has an `items` key with a list of wardrobe item dicts, may be empty
 - **Output:** Non-empty string with 1-2 outfit suggestions from the LLM.
 - **Purpose:** Sends the new item and wardrobe to the LLM and asks for specific outfit combinations, or general styling advice if wardrobe is empty.
 
 ### Tool 3: create_fit_card(outfit, new_item)
-- **Inputs:** `outfit` (str) — outfit suggestion from suggest_outfit; `new_item` (dict), the listing dict
+- **Inputs:** `outfit` (str), outfit suggestion from suggest_outfit; `new_item` (dict), the listing dict
 - **Output:** 2-4 sentence casual Instagram-style caption string.
 - **Purpose:** Generates a shareable, authentic-sounding caption for the outfit using the LLM at higher temperature for variety.
 
@@ -98,7 +98,7 @@ The agent runs a sequential loop with conditional branching:
 6. Call `create_fit_card` with the outfit suggestion and selected item
 7. Return the completed session
 
-The agent does not call all three tools unconditionally — it stops at step 3 if search returns nothing, avoiding downstream calls with empty input.
+The agent does not call all three tools unconditionally, it stops at step 3 if search returns nothing, avoiding downstream calls with empty input.
 
 ## State Management
 
@@ -117,7 +117,7 @@ session = {
 }
 ```
 
-Each tool reads its inputs from the session and writes its output back — no data is re-entered between steps.
+Each tool reads its inputs from the session and writes its output back, no data is re-entered between steps.
 
 ## Error Handling
 
@@ -125,7 +125,7 @@ Each tool reads its inputs from the session and writes its output back — no da
 |------|-------------|----------------|
 | search_listings | No results match the query | Sets `session["error"]` = "No listings found, try broader search terms or a higher price limit" and returns immediately |
 | suggest_outfit | Wardrobe is empty | Still calls LLM but prompts for general styling advice instead of specific combinations |
-| create_fit_card | outfit string is empty | Returns "Unable to generate fit card — outfit description is missing" without calling the LLM |
+| create_fit_card | outfit string is empty | Returns "Unable to generate fit card, outfit description is missing" without calling the LLM |
 
 **Concrete example from testing:**
 Running `search_listings("designer ballgown", size="XXS", max_price=5)` returns `[]`. The agent sets the error message and stops — `suggest_outfit` and `create_fit_card` are never called. The user sees: "No listings found, try broader search terms or a higher price limit."
@@ -153,7 +153,7 @@ the user with a warning in the listing panel. If results are still
 empty after retry, the agent sets `session["error"]` and stops.
 
 ### Price Comparison Tool: compare_prices(new_item)
-- **Inputs:** `new_item` (dict) — a listing dict
+- **Inputs:** `new_item` (dict), a listing dict
 - **Output:** String with price assessment (GREAT DEAL / FAIR PRICE / 
   SLIGHTLY HIGH), item price, average price of comparable listings, 
   price range, and reasoning.
@@ -164,9 +164,9 @@ empty after retry, the agent sets `session["error"]` and stops.
 ### Style Profile Memory
 Saves the user's wardrobe and style preferences to `data/style_profile.json` 
 between sessions. Users can save their current wardrobe and preferences with 
-the Save Profile button, and reload them in a future session with Load Profile 
-— without re-describing their wardrobe. Storage approach: local JSON file 
-written and read with Python's `json` and `pathlib` modules.
+the Save Profile button, and reload them in a future session with Load Profile, 
+without re-describing their wardrobe.
+ Storage approach: local JSON file written and read with Python's `json` and `pathlib` modules.
 
 ## State Management
 
@@ -187,5 +187,5 @@ session = {
 }
 ```
 
-Each tool reads its inputs from the session and writes its output back — 
+Each tool reads its inputs from the session and writes its output back, 
 no data is re-entered between steps.
