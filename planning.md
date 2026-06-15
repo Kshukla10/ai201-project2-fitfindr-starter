@@ -28,13 +28,13 @@ a sorted list of matching listing dicts.
 
 **What it returns:**
 <!-- Describe the return value — what fields does a result contain? -->
-A list of listing dicts sorted by relevance score, each containing:
+A list of listing dicts sorted by relevance score, each containing,
 id, title, description, category, style_tags, size, condition, 
 price, colors, brand, platform. Returns [] if nothing matches.
 
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if no listings match? -->
-Returns [] — agent sets session["error"] = "No listings found — 
+Returns [], agent sets session["error"] = "No listings found — 
 try broader search terms or a higher price limit" and stops immediately.
 
 ---
@@ -83,7 +83,7 @@ price, and platform naturally.
 **What happens if it fails or returns nothing:**
 <!-- What should the agent do if the outfit data is incomplete? -->
 If outfit is empty or whitespace, return error message string 
-immediately — do not call the LLM.
+immediately, do not call the LLM.
 
 ---
 
@@ -136,16 +136,9 @@ UI shows "No saved profile found."
 **How does your agent decide which tool to call next?**
 <!-- Describe the logic your planning loop uses. What does it look at? What conditions change its behavior? How does it know when it's done? -->
 **How does your agent decide which tool to call next?**
-After search_listings runs, check if results is empty. If yes and a 
-size filter was applied, retry without the size filter and set 
-session["retry_note"] to inform the user. If results are still empty, 
-set session["error"] and return immediately. If results exist, set 
-session["selected_item"] = results[0] and call compare_prices to assess 
-the item's value. Then call suggest_outfit with the selected item and 
-wardrobe. After suggest_outfit runs, store the result in 
-session["outfit_suggestion"] and call create_fit_card. After 
-create_fit_card runs, store the result in session["fit_card"] and 
-return the full session to the user.
+After executing the `search_listings` function, verify whether the results are empty. If so, and a size filter was previously applied, retry the search without the size filter and set `session["retry_note"]` to inform the user of this adjustment. If the results remain empty after the retry, set `session["error"]` and terminate the process. 
+
+If results are found, assign the first item to `session["selected_item"]` and invoke `compare_prices` to evaluate its value. Subsequently, call `suggest_outfit` with the selected item and wardrobe data. Once `suggest_outfit` completes, store the outcome in `session["outfit_suggestion"]` and then invoke `create_fit_card`. After generating the fit card, save the result in `session["fit_card"]` and return the complete session information to the user.
 
 ---
 
@@ -264,7 +257,7 @@ planning.md and asked it to implement run_agent() in agent.py. Before
 using the code I verified it branched on the search_listings result and 
 did not call all three tools unconditionally. I also verified each tool 
 result was stored in the session dict before the next tool was called. 
-I overrode the query parsing approach — the generated code used LLM-based 
+I overrode the query parsing approach, the generated code used LLM-based 
 parsing but I switched to regex for reliability and speed.
 
 **Stretch Features — Price comparison and retry logic:**

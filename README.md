@@ -1,8 +1,8 @@
 # FitFindr — Starter Kit
 
 A multi-tool AI agent that helps users find secondhand pieces and figure out 
-how to wear them. FitFindr orchestrates three tools in sequence — searching 
-listings, suggesting outfits, and generating a shareable fit card — while 
+how to wear them. FitFindr orchestrates three tools in sequence, searching 
+listings, suggesting outfits, and generating a shareable fit card, while 
 handling failures gracefully at each step.
 
 ## What's Included
@@ -72,17 +72,17 @@ python app.py
 ## Tool Inventory
 
 ### Tool 1: search_listings(description, size, max_price)
-- **Inputs:** `description` (str) — keywords describing the item; `size` (str or None) — size to filter by; `max_price` (float or None) — upper price limit
+- **Inputs:** `description` (str) — keywords describing the item; `size` (str or None), size to filter by; `max_price` (float or None) — upper price limit
 - **Output:** List of listing dicts sorted by relevance score, each containing id, title, description, category, style_tags, size, condition, price, colors, brand, platform. Returns `[]` if nothing matches.
 - **Purpose:** Searches and ranks listings from listings.json by keyword overlap with the description, after filtering by price and size.
 
 ### Tool 2: suggest_outfit(new_item, wardrobe)
-- **Inputs:** `new_item` (dict) — a listing dict; `wardrobe` (dict) — has an `items` key with a list of wardrobe item dicts, may be empty
+- **Inputs:** `new_item` (dict) — a listing dict; `wardrobe` (dict), has an `items` key with a list of wardrobe item dicts, may be empty
 - **Output:** Non-empty string with 1-2 outfit suggestions from the LLM.
 - **Purpose:** Sends the new item and wardrobe to the LLM and asks for specific outfit combinations, or general styling advice if wardrobe is empty.
 
 ### Tool 3: create_fit_card(outfit, new_item)
-- **Inputs:** `outfit` (str) — outfit suggestion from suggest_outfit; `new_item` (dict) — the listing dict
+- **Inputs:** `outfit` (str) — outfit suggestion from suggest_outfit; `new_item` (dict), the listing dict
 - **Output:** 2-4 sentence casual Instagram-style caption string.
 - **Purpose:** Generates a shareable, authentic-sounding caption for the outfit using the LLM at higher temperature for variety.
 
@@ -123,16 +123,16 @@ Each tool reads its inputs from the session and writes its output back — no da
 
 | Tool | Failure mode | Agent response |
 |------|-------------|----------------|
-| search_listings | No results match the query | Sets `session["error"]` = "No listings found — try broader search terms or a higher price limit" and returns immediately |
+| search_listings | No results match the query | Sets `session["error"]` = "No listings found, try broader search terms or a higher price limit" and returns immediately |
 | suggest_outfit | Wardrobe is empty | Still calls LLM but prompts for general styling advice instead of specific combinations |
 | create_fit_card | outfit string is empty | Returns "Unable to generate fit card — outfit description is missing" without calling the LLM |
 
 **Concrete example from testing:**
-Running `search_listings("designer ballgown", size="XXS", max_price=5)` returns `[]`. The agent sets the error message and stops — `suggest_outfit` and `create_fit_card` are never called. The user sees: "No listings found — try broader search terms or a higher price limit."
+Running `search_listings("designer ballgown", size="XXS", max_price=5)` returns `[]`. The agent sets the error message and stops — `suggest_outfit` and `create_fit_card` are never called. The user sees: "No listings found, try broader search terms or a higher price limit."
 
 ## Spec Reflection
 
-**One way the spec helped:** Filling in the planning loop section of planning.md before writing any code made the conditional branching logic clear before implementation. When it came to writing `run_agent()`, the exact branches were already decided — the code followed directly from the spec.
+**One way the spec helped:** Filling in the planning loop section of planning.md before writing any code made the conditional branching logic clear before implementation. When it came to writing `run_agent()`, the exact branches were already decided, the code followed directly from the spec.
 
 **One way implementation diverged:** The spec assumed query parsing would be simple. In practice, regex-based parsing works well for price and size but can miss edge cases in how users phrase descriptions. A more robust implementation would use the LLM to parse the query instead of regex.
 
@@ -149,7 +149,7 @@ I gave Claude the architecture diagram and planning loop section from planning.m
 ### Retry Logic with Fallback
 If `search_listings` returns no results and a size filter was applied, 
 the agent automatically retries without the size filter and notifies 
-the user with a ⚠️ warning in the listing panel. If results are still 
+the user with a warning in the listing panel. If results are still 
 empty after retry, the agent sets `session["error"]` and stops.
 
 ### Price Comparison Tool: compare_prices(new_item)
@@ -177,7 +177,7 @@ session = {
     "query": query,              # original user query
     "parsed": {},                # extracted description, size, max_price
     "search_results": [],        # all matching listings
-    "selected_item": None,       # top result — passed into suggest_outfit
+    "selected_item": None,       # top result, passed into suggest_outfit
     "wardrobe": wardrobe,        # user's wardrobe
     "outfit_suggestion": None,   # returned by suggest_outfit — passed into create_fit_card
     "fit_card": None,            # returned by create_fit_card
